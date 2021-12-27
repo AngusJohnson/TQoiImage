@@ -261,7 +261,7 @@ begin
     Image.PixelFormat := pf32bit;
     Image.SetSize(width, height);
   end;
-  px.Color      := $FF000000;
+  px.Color := $FF000000;
   run := 0;
   FillChar(index, SizeOf(index), 0);
   dst := PARGB(Image.ScanLine[desc.height-1]);
@@ -328,7 +328,7 @@ procedure TQoiImage.SaveToStream(Stream: TStream);
 var
   i,max_size, run: integer;
   vr, vg, vb, vg_r, vg_b: integer;
-	index_pos: integer;
+  index_pos: integer;
   bytes: TArrayOfByte;
   dst: PByte;
   src: PARGB;
@@ -350,8 +350,8 @@ begin
 
   dst := @bytes[0];
   qoi_write_32(dst, QOI_MAGIC);
-	qoi_write_32(dst, SwapBytes(Image.width));
-	qoi_write_32(dst, SwapBytes(Image.height));
+    qoi_write_32(dst, SwapBytes(Image.width));
+    qoi_write_32(dst, SwapBytes(Image.height));
   qoi_write_8(dst, 4); //channels
   qoi_write_8(dst, 0); //colorspace
 
@@ -367,10 +367,10 @@ begin
     if src.Color = px_prev.Color then
     begin
       inc(run);
-			if (run = 62) or (i = max_size) then
+      if (run = 62) or (i = max_size) then
       begin
         qoi_write_8(dst, QOI_OP_RUN or (run - 1));
-				run := 0;
+        run := 0;
       end;
     end else
     begin
