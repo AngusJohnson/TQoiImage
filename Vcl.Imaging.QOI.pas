@@ -237,8 +237,10 @@ begin
   if size < QOI_HEADER_SIZE + qoi_padding_size then Exit;
 
   if stream is TMemoryStream then
-    src := TMemoryStream(stream).Memory
-  else
+  begin
+    src := TMemoryStream(stream).Memory;
+    inc(src, stream.Position);
+  end else
   begin
     SetLength(srcTmp, size);
     stream.Read(srcTmp[0], size);
