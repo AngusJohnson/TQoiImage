@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  0.99.2                                                          *
+* Version   :  0.99.3                                                          *
 * Date      :  28 December 2021                                                *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2021                                              *
