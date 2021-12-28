@@ -118,9 +118,15 @@ begin
   Result := (c.R * 3 + c.G * 5 + c.B * 7 + c.A * 9 + c.A * 2) mod 64;
 end;
 
-function SwapBytes(Value: Cardinal): Cardinal; register;
-asm
-  BSWAP  EAX
+function SwapBytes(Value: Cardinal): Cardinal;
+var
+  v: array[0..3] of byte absolute Value;
+  r: array[0..3] of byte absolute Result;
+begin
+  r[3] := v[0];
+  r[2] := v[1];
+  r[1] := v[2];
+  r[0] := v[3];
 end;
 
 function ReadByte(var p: PByte): Byte; inline;
@@ -216,7 +222,7 @@ begin
     Result := TBitmap.CanLoadFromStream(Stream);
 end;
 
-{ *R- }
+{$R-}
 procedure TQoiImage.LoadFromStream(Stream: TStream);
 var
   size, run, vg: Integer;
@@ -322,7 +328,7 @@ begin
 
   Changed(Self);
 end;
-{ *R+ }
+{$R+}
 
 procedure TQoiImage.SaveToFile(const Filename: string);
 begin
