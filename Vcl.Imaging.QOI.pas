@@ -4,11 +4,10 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.0                                                          *
-* Date      :  29 December 2021                                                *
+* Version   :  1.01                                                            *
+* Date      :  30 December 2021                                                *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2021                                              *
-*                                                                              *
 * License   :  The MIT License(MIT), see below.                                *
 *******************************************************************************)
 
@@ -43,13 +42,11 @@ uses
   System.Classes;
 
 type
-  TTriState = (tsUnknown, tsFalse, tsTrue);
   TQoiImage = class(TGraphic)
   private
     FBitmap     : TBitmap;
     FSaveAsBmp  : Boolean;
-    FHasTransPx : TTriState;
-    function  GetHasTrans: Boolean;
+    function GetHasTransparency: Boolean;
   protected
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
     function GetEmpty: Boolean; override;
@@ -73,7 +70,7 @@ type
     procedure SaveToClipboardFormat(var AFormat: Word; var AData: THandle;
       var APalette: HPALETTE); override;
     procedure SetSize(AWidth, AHeight: Integer); override;
-    property HasTransparency: Boolean read GetHasTrans;
+    property HasTransparency: Boolean read GetHasTransparency;
   end;
 
 implementation
@@ -218,10 +215,8 @@ var
   tmpPng: TPngImage;
 begin
   if Dest is TQoiImage then
-  begin
-    TQoiImage(Dest).Image.Assign(Image);
-    TQoiImage(Dest).FHasTransPx := FHasTransPx;
-  end else if Dest is TBitmap then
+    TQoiImage(Dest).Image.Assign(Image)
+  else if Dest is TBitmap then
   begin
     TBitmap(Dest).SetSize(Width, Height);
     TBitmap(Dest).PixelFormat := pf32bit;
@@ -242,34 +237,16 @@ end;
 procedure TQoiImage.Assign(Source: TPersistent);
 begin
   if Source is TQoiImage then
-  begin
-    Image.Assign(TQoiImage(Source).Image);
-    FHasTransPx := TQoiImage(Source).FHasTransPx;
-  end
+    Image.Assign(TQoiImage(Source).Image)
   else if Source is TBitmap then
-  begin
+    Image.Assign(Source)
+  else
     Image.Assign(Source);
-    FHasTransPx := tsUnknown;
-  end else
-  begin
-    Image.Assign(Source);
-    FHasTransPx := tsUnknown;
-  end;
 end;
 
-function TQoiImage.GetHasTrans: Boolean;
+function TQoiImage.GetHasTransparency: Boolean;
 begin
-  case FHasTransPx of
-    tsUnknown:
-      begin
-        Result := Bmp32HasTransparency(Image);
-        if Result then
-          FHasTransPx := tsTrue else
-          FHasTransPx := tsFalse;
-      end;
-    tsFalse: Result := false;
-    else Result := true;
-  end;
+  Result := Bmp32HasTransparency(Image);
 end;
 
 procedure TQoiImage.Draw(ACanvas: TCanvas; const Rect: TRect);
@@ -403,7 +380,6 @@ begin
   px.Color := $FF000000;
   run := 0;
   FillChar(index, SizeOf(index), 0);
-  FHasTransPx := tsUnknown;
 
   for y := 0 to Image.height -1 do
   begin
