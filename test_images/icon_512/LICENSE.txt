@@ -1,0 +1,5 @@
+The Tango Icon Library as rasterized PNGs, from https://github.com/nigeltao/tango-icon-library-pngs
+
+LICENSE:
+The tango-icon-theme-0.8.90.tar.gz COPYING file, in full:
+The icons in this repository are herefore released into the Public Domain.
