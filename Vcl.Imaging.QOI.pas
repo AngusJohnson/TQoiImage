@@ -4,8 +4,8 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.01                                                            *
-* Date      :  30 December 2021                                                *
+* Version   :  1.02                                                            *
+* Date      :  31 December 2021                                                *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2021                                              *
 * License   :  The MIT License(MIT), see below.                                *
@@ -42,10 +42,13 @@ uses
   System.Classes;
 
 type
+  TQoiTriState = (tsUnknown, tsFalse, tsTrue);
+
   TQoiImage = class(TGraphic)
   private
     FBitmap     : TBitmap;
     FSaveAsBmp  : Boolean;
+    FTranspency : TQoiTriState;
     function GetHasTransparency: Boolean;
   protected
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
@@ -55,6 +58,7 @@ type
     function GetWidth: Integer; override;
     procedure SetHeight(Value: Integer); override;
     procedure SetWidth(Value: Integer); override;
+    procedure ImageChanged(Sender: TObject);
     property Image: TBitmap read FBitmap;
   public
     constructor Create; override;
@@ -120,7 +124,7 @@ const
 
 function QOI_COLOR_HASH(c: TARGB): Byte; inline;
 begin
-  Result := (c.R * 3 + c.G * 5 + c.B * 7 + c.A * 11) mod 64;
+  Result := (c.R * 3 + c.G * 5 + c.B * 7 + c.A * 11) and $3F;
 end;
 
 function SwapBytes(Value: Cardinal): Cardinal;
@@ -152,7 +156,7 @@ begin
   inc(p);
 end;
 
-function Bmp32HasTransparency(bmp: TBitmap): Boolean;
+function IsTransparent(bmp: TBitmap): Boolean;
 var
   i : Integer;
   c : PARGB;
@@ -202,6 +206,7 @@ constructor TQoiImage.Create;
 begin
   inherited;
   FBitmap := TBitmap.Create;
+  FBitmap.OnChange := ImageChanged;
 end;
 
 destructor TQoiImage.Destroy;
@@ -215,14 +220,14 @@ var
   tmpPng: TPngImage;
 begin
   if Dest is TQoiImage then
-    TQoiImage(Dest).Image.Assign(Image)
+  begin
+    TQoiImage(Dest).Image.Assign(Image);
+    TQoiImage(Dest).FTranspency := FTranspency;
+  end
   else if Dest is TBitmap then
   begin
-    TBitmap(Dest).SetSize(Width, Height);
-    TBitmap(Dest).PixelFormat := pf32bit;
-    TBitmap(Dest).Canvas.Draw(0,0, self);
-  end
-  else if Dest is TPngImage then
+    TBitmap(Dest).Assign(Image);
+  end else if Dest is TPngImage then
   begin
     tmpPng := CreateTransparentPNG(self);
     try
@@ -246,7 +251,17 @@ end;
 
 function TQoiImage.GetHasTransparency: Boolean;
 begin
-  Result := Bmp32HasTransparency(Image);
+  case FTranspency of
+    tsUnknown:
+    begin
+      Result := IsTransparent(Image);
+      if Result then
+        FTranspency := tsTrue else
+        FTranspency := tsFalse
+    end;
+    tsFalse: Result := False;
+    else Result := True;
+  end;
 end;
 
 procedure TQoiImage.Draw(ACanvas: TCanvas; const Rect: TRect);
@@ -308,6 +323,11 @@ end;
 procedure TQoiImage.SetWidth(Value: Integer);
 begin
   THackedBitmap(Image).SetWidth(Value);
+end;
+
+procedure TQoiImage.ImageChanged(Sender: TObject);
+begin
+  FTranspency := tsUnknown;
 end;
 
 class function TQoiImage.CanLoadFromStream(Stream: TStream): Boolean;
@@ -376,6 +396,12 @@ begin
       Exit;
     Image.PixelFormat := pf32bit;
     Image.SetSize(width, height);
+    if desc.channels = 4 then
+    begin
+      Image.AlphaFormat := afDefined;
+      FTranspency := tsTrue; //nb: do after setting AlphaFormat
+    end else
+      FTranspency := tsFalse;
   end;
   px.Color := $FF000000;
   run := 0;
@@ -444,7 +470,7 @@ end;
 
 procedure TQoiImage.SaveToStream(Stream: TStream);
 var
-  x,y,k,y2, max_size, run: Integer;
+  x,y,k,y2, max_size, run, channels: Integer;
   vr, vg, vb, vg_r, vg_b: Integer;
   index_pos: Integer;
   bytes: TArrayOfByte;
@@ -462,7 +488,9 @@ begin
     Exit;
   end;
 
-  max_size := Image.width * Image.height * SizeOf(TColor32) + QOI_HEADER_SIZE +
+  if HasTransparency then channels := 4 else channels := 3;
+
+  max_size := Image.width * Image.height * channels + QOI_HEADER_SIZE +
     qoi_padding_size;
   SetLength(bytes, max_size);
   Image.PixelFormat := pf32bit;
@@ -471,16 +499,16 @@ begin
   qoi_write_32(dst, QOI_MAGIC);
   qoi_write_32(dst, SwapBytes(Image.width));
   qoi_write_32(dst, SwapBytes(Image.height));
-  qoi_write_8(dst, 4); // channels
+  qoi_write_8(dst, channels);
   qoi_write_8(dst, 0); // colorspace
 
   run := 0;
   px_prev.Color := $FF000000;
   FillChar(index, SizeOf(index), 0);
 
-  //Images appear to be always stored bottom-up in memory
-  //(even those saved to file as top-down) and this makes
-  //pixel-parsing slightly more difficult).
+  //ISTM that bitmaps are always stored 'bottom-up' in memory
+  //(even those loaded from 'top-down' streams). Unfortunately
+  //this makes parsing these pixels slightly less efficient.
   for y := 0 to Image.height -1 do
   begin
     src := PARGB(Image.ScanLine[y]);
@@ -557,7 +585,7 @@ begin
     qoi_write_8(dst, QOI_OP_RUN or (run - 1));
 
   for x := 0 to 7 do
-    qoi_write_8(dst, qoi_padding[x]); // colorspace
+    qoi_write_8(dst, qoi_padding[x]);
   max_size := dst - PByte(@bytes[0]);
   Stream.Write(bytes[0], max_size);
 end;
