@@ -49,7 +49,6 @@ type
     FBitmap     : TBitmap;
     FSaveAsBmp  : Boolean;
     FHasTransPx : TTriState;
-    FPremult    : Boolean;
     function  GetHasTrans: Boolean;
   protected
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
@@ -246,18 +245,15 @@ begin
   begin
     Image.Assign(TQoiImage(Source).Image);
     FHasTransPx := TQoiImage(Source).FHasTransPx;
-    FPremult    := TQoiImage(Source).FPremult;
   end
   else if Source is TBitmap then
   begin
     Image.Assign(Source);
     FHasTransPx := tsUnknown;
-    FPremult    := false;
   end else
   begin
     Image.Assign(Source);
     FHasTransPx := tsUnknown;
-    FPremult    := false;
   end;
 end;
 
@@ -284,8 +280,9 @@ var
 begin
   if HasTransparency then
   begin
-    //create a temporary Bitmap and premultiply
-    //(nb: premultiply is a prerequisite to Windows' alpha blending
+    //Premultiplication is a prerequisite for Windows' alpha
+    //blending but it will marginally degrade the original image.
+    //Hence we'll premultiply a temporary copy of the image.
     bmp := TBitmap.create;
     try
       bmp.Assign(Image);
@@ -407,7 +404,6 @@ begin
   run := 0;
   FillChar(index, SizeOf(index), 0);
   FHasTransPx := tsUnknown;
-  FPremult    := False;
 
   for y := 0 to Image.height -1 do
   begin
