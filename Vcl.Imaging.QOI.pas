@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.02                                                            *
+* Version   :  1.03                                                            *
 * Date      :  31 December 2021                                                *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2021                                              *
@@ -242,9 +242,10 @@ end;
 procedure TQoiImage.Assign(Source: TPersistent);
 begin
   if Source is TQoiImage then
-    Image.Assign(TQoiImage(Source).Image)
-  else if Source is TBitmap then
-    Image.Assign(Source)
+  begin
+    Image.Assign(TQoiImage(Source).Image);
+    FTranspency := TQoiImage(Source).FTranspency;
+  end
   else
     Image.Assign(Source);
 end;
@@ -268,17 +269,17 @@ procedure TQoiImage.Draw(ACanvas: TCanvas; const Rect: TRect);
 var
   BlendFunction: TBlendFunction;
   w, h: integer;
-  bmp: TBitmap;
+  tmpBmp: TBitmap;
 begin
   if HasTransparency then
   begin
-    //Premultiplication is a prerequisite for Windows' alpha
-    //blending but it will marginally degrade the original image.
-    //Hence we'll premultiply a temporary copy of the image.
-    bmp := TBitmap.create;
+    //Pre-multiplication is required for Windows'
+    //alpha blending. But since it slightly degrades
+    //the original image, we'll use a temporary image
+    tmpBmp := TBitmap.create;
     try
-      bmp.Assign(Image);
-      bmp.AlphaFormat := afPremultiplied;
+      tmpBmp.Assign(Image);
+      tmpBmp.AlphaFormat := afPremultiplied; //premultiplies
       BlendFunction.BlendOp := AC_SRC_OVER;
       BlendFunction.AlphaFormat := AC_SRC_ALPHA;
       BlendFunction.SourceConstantAlpha := 255;
@@ -287,9 +288,9 @@ begin
       h := System.Math.Min(Height, Rect.Height);
       Winapi.Windows.AlphaBlend(
         ACanvas.Handle, Rect.Left, Rect.Top, w, h,
-        bmp.Canvas.Handle, 0, 0, w,h, BlendFunction);
+        tmpBmp.Canvas.Handle, 0, 0, w,h, BlendFunction);
     finally
-      bmp.Free;
+      tmpBmp.Free;
     end;
   end else
     THackedBitmap(Image).Draw(ACanvas, Rect);
