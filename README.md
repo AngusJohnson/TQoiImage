@@ -1,7 +1,7 @@
 # TQoiImage
-Delphi support for QOI images.
+Delphi support for QOI images.<br><br>
 
-For more about QOI images see<br>
+QOI - The “Quite OK Image Format” for fast, lossless image compression<br>
 https://github.com/phoboslab/qoi
 
 
