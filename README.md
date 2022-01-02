@@ -16,17 +16,8 @@ Example:
   qoi := TQoiImage.Create;
   <b>try</b>
     qoi.LoadFromFile('..\..\dice.qoi');
-    
     <i>//copy (draw) the qoi image onto a TImage component</i>
-    <b>with</b> Image1.Picture.Bitmap <b>do</b>
-    <b>begin</b>
-      SetSize(qoi.Width, qoi.Height);
-      PixelFormat := pf32bit;
-      Canvas.Brush.Color := clBtnFace;
-      Canvas.FillRect(Rect(0, 0, Width, Height));    
-      Canvas.Draw(0,0, qoi);
-    <b>end</b>;
-    
+    Image1.Picture.Bitmap.Assign(qoi);
   <b>finally</b>
     qoi.Free;
   <b>end</b>;
