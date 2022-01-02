@@ -17,7 +17,7 @@ Example:
   <b>try</b>
     qoi.LoadFromFile('..\..\dice.qoi');
     <i>//copy (draw) the qoi image onto a TImage component</i>
-    Image1.Picture.Bitmap.Assign(qoi);
+    Image1.Picture.Assign(qoi);
   <b>finally</b>
     qoi.Free;
   <b>end</b>;
