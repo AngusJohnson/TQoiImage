@@ -4,10 +4,10 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.03                                                            *
-* Date      :  31 December 2021                                                *
+* Version   :  1.04                                                            *
+* Date      :  6 January 2022                                                  *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2021                                              *
+* Copyright :  Angus Johnson 2021-2022                                         *
 * License   :  The MIT License(MIT), see below.                                *
 *******************************************************************************)
 
@@ -358,8 +358,7 @@ var
   px: TARGB;
   b1, b2: Byte;
   dst: PARGB;
-  src: PByte;
-  srcTmp: TArrayOfByte;
+  src, src0: PByte;
 begin
   if not Assigned(Stream) then
     Exit;
@@ -376,87 +375,94 @@ begin
 
   if Stream is TMemoryStream then
   begin
-    src := TMemoryStream(Stream).Memory;
-    inc(src, Stream.Position);
-  end
-  else
+    src0 := nil;
+    src := TMemoryStream(stream).Memory;
+    inc(src, stream.Position);
+  end else
   begin
-    SetLength(srcTmp, size);
-    Stream.Read(srcTmp[0], size);
-    src := @srcTmp[0];
+    //Using GetMem instead of TArrayOfByte saves the
+    //very small time cost of zeroing the memory
+    GetMem(src0, size);
+    Stream.Read(src0^, size);
+    src := src0;
   end;
 
-  Move(src^, desc, SizeOf(TQOI_DESC));
-  inc(src, SizeOf(TQOI_DESC));
-  with desc do
-  begin
-    width := SwapBytes(width);
-    height := SwapBytes(height);
-    if (magic <> QOI_MAGIC) or (width = 0) or (height = 0) or (channels < 3) or
-      (channels > 4) or (colorspace > 1) then
-      Exit;
-    Image.PixelFormat := pf32bit;
-    Image.SetSize(width, height);
-    if desc.channels = 4 then
+  try
+    Move(src^, desc, SizeOf(TQOI_DESC));
+    inc(src, SizeOf(TQOI_DESC));
+    with desc do
     begin
-      Image.AlphaFormat := afDefined;
-      FTranspency := tsTrue; //nb: do after setting AlphaFormat
-    end else
-      FTranspency := tsFalse;
-  end;
-  px.Color := $FF000000;
-  run := 0;
-  FillChar(index, SizeOf(index), 0);
-
-  for y := 0 to Image.height -1 do
-  begin
-    dst := PARGB(Image.ScanLine[y]);
-    for x := 0 to Image.Width -1 do
-    begin
-      if (run > 0) then
+      width := SwapBytes(width);
+      height := SwapBytes(height);
+      if (magic <> QOI_MAGIC) or (width = 0) or (height = 0) or (channels < 3) or
+        (channels > 4) or (colorspace > 1) then
+        Exit;
+      Image.PixelFormat := pf32bit;
+      Image.SetSize(width, height);
+      if desc.channels = 4 then
       begin
-        Dec(run);
+        Image.AlphaFormat := afDefined;
+        FTranspency := tsTrue; //nb: do after setting AlphaFormat
       end else
-      begin
-        b1 := ReadByte(src);
-        if (b1 = QOI_OP_RGB) then
-        begin
-          px.R := ReadByte(src);
-          px.G := ReadByte(src);
-          px.B := ReadByte(src);
-        end
-        else if (b1 = QOI_OP_RGBA) then
-        begin
-          px.R := ReadByte(src);
-          px.G := ReadByte(src);
-          px.B := ReadByte(src);
-          px.A := ReadByte(src);
-        end
-        else if ((b1 and QOI_MASK_2) = QOI_OP_INDEX) then
-        begin
-          px := index[b1];
-        end
-        else if (b1 and QOI_MASK_2) = QOI_OP_DIFF then
-        begin
-          px.R := px.R + ((b1 shr 4) and 3) - 2;
-          px.G := px.G + ((b1 shr 2) and 3) - 2;
-          px.B := px.B + (b1 and 3) - 2;
-        end
-        else if (b1 and QOI_MASK_2) = QOI_OP_LUMA then
-        begin
-          b2 := ReadByte(src);
-          vg := (b1 and $3F) - 32;
-          px.R := px.R + vg - 8 + ((b2 shr 4) and $F);
-          px.G := px.G + vg;
-          px.B := px.B + vg - 8 + (b2 and $F);
-        end
-        else if (b1 and QOI_MASK_2) = QOI_OP_RUN then
-          run := (b1 and $3F);
-        index[QOI_COLOR_HASH(px)] := px;
-      end;
-      dst.Color := px.Color;
-      inc(dst);
+        FTranspency := tsFalse;
     end;
+    px.Color := $FF000000;
+    run := 0;
+    FillChar(index, SizeOf(index), 0);
+
+    for y := 0 to Image.height -1 do
+    begin
+      dst := PARGB(Image.ScanLine[y]);
+      for x := 0 to Image.Width -1 do
+      begin
+        if (run > 0) then
+        begin
+          Dec(run);
+        end else
+        begin
+          b1 := ReadByte(src);
+          if (b1 = QOI_OP_RGB) then
+          begin
+            px.R := ReadByte(src);
+            px.G := ReadByte(src);
+            px.B := ReadByte(src);
+          end
+          else if (b1 = QOI_OP_RGBA) then
+          begin
+            px.R := ReadByte(src);
+            px.G := ReadByte(src);
+            px.B := ReadByte(src);
+            px.A := ReadByte(src);
+          end
+          else if ((b1 and QOI_MASK_2) = QOI_OP_INDEX) then
+          begin
+            px := index[b1];
+          end
+          else if (b1 and QOI_MASK_2) = QOI_OP_DIFF then
+          begin
+            px.R := px.R + ((b1 shr 4) and 3) - 2;
+            px.G := px.G + ((b1 shr 2) and 3) - 2;
+            px.B := px.B + (b1 and 3) - 2;
+          end
+          else if (b1 and QOI_MASK_2) = QOI_OP_LUMA then
+          begin
+            b2 := ReadByte(src);
+            vg := (b1 and $3F) - 32;
+            px.R := px.R + vg - 8 + ((b2 shr 4) and $F);
+            px.G := px.G + vg;
+            px.B := px.B + vg - 8 + (b2 and $F);
+          end
+          else if (b1 and QOI_MASK_2) = QOI_OP_RUN then
+            run := (b1 and $3F);
+          index[QOI_COLOR_HASH(px)] := px;
+        end;
+        dst.Color := px.Color;
+        inc(dst);
+      end;
+    end;
+  finally
+    if Assigned(src0) then
+      FreeMem(src0);
   end;
   Changed(Self);
 end;
@@ -588,6 +594,7 @@ begin
   for x := 0 to 7 do
     qoi_write_8(dst, qoi_padding[x]);
   max_size := dst - PByte(@bytes[0]);
+
   Stream.Write(bytes[0], max_size);
 end;
 
