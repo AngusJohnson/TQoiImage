@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.05                                                            *
+* Version   :  1.06                                                            *
 * Date      :  16 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2021-2022                                         *
@@ -249,7 +249,7 @@ begin
   begin
     Image.Assign(Source);
     Image.PixelFormat := pf32bit;
-    Image.AlphaFormat := afDefined;
+    Image.AlphaFormat := afIgnored; //unpremultiplies if premultiplied
   end;
 end;
 
@@ -282,7 +282,7 @@ begin
     tmpBmp := TBitmap.create;
     try
       tmpBmp.Assign(Image);
-      tmpBmp.AlphaFormat := afPremultiplied; //premultiplies
+      tmpBmp.AlphaFormat := afPremultiplied; //premultiplies tmpBmp
       BlendFunction.BlendOp := AC_SRC_OVER;
       BlendFunction.AlphaFormat := AC_SRC_ALPHA;
       BlendFunction.SourceConstantAlpha := 255;
@@ -402,12 +402,10 @@ begin
         (channels > 4) or (colorspace > 1) then
         Exit;
       Image.PixelFormat := pf32bit;
+      Image.AlphaFormat := afIgnored;
       Image.SetSize(width, height);
       if desc.channels = 4 then
-      begin
-        Image.AlphaFormat := afDefined;
-        FTranspency := tsTrue; //nb: do after setting AlphaFormat
-      end else
+        FTranspency := tsTrue else
         FTranspency := tsFalse;
     end;
     px.Color := $FF000000;
