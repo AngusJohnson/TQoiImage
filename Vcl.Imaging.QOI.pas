@@ -4,8 +4,8 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  1.04                                                            *
-* Date      :  6 January 2022                                                  *
+* Version   :  1.05                                                            *
+* Date      :  16 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2021-2022                                         *
 * License   :  The MIT License(MIT), see below.                                *
@@ -245,9 +245,12 @@ begin
   begin
     Image.Assign(TQoiImage(Source).Image);
     FTranspency := TQoiImage(Source).FTranspency;
-  end
-  else
+  end else
+  begin
     Image.Assign(Source);
+    Image.PixelFormat := pf32bit;
+    Image.AlphaFormat := afDefined;
+  end;
 end;
 
 function TQoiImage.GetHasTransparency: Boolean;
@@ -369,6 +372,7 @@ begin
     Exit;
   end;
 
+
   size := Stream.size - Stream.Position;
   if size < QOI_HEADER_SIZE + qoi_padding_size then
     Exit;
@@ -480,7 +484,7 @@ var
   x,y,k,y2, max_size, run, channels: Integer;
   vr, vg, vb, vg_r, vg_b: Integer;
   index_pos: Integer;
-  bytes: TArrayOfByte;
+  bytes: TBytes;
   dst: PByte;
   src: PARGB;
   index: array [0 .. 63] of TARGB;
@@ -616,11 +620,6 @@ begin
 end;
 
 initialization
-
-TPicture.RegisterFileFormat('QOI', sQoiImageFile, TQoiImage); // Do not localize
-
-finalization
-
-TPicture.UnregisterGraphicClass(TQoiImage);
+  TPicture.RegisterFileFormat('QOI', sQoiImageFile, TQoiImage); // Do not localize
 
 end.
