@@ -33,3 +33,7 @@ Example:
   <b>end</b>;
 </code></pre>
 
+# QoiPreviewHandler.dll
+
+![previewhandler](https://user-images.githubusercontent.com/5280692/149751938-dc65d49d-77a4-43a8-b894-d0503254f929.png)
+
