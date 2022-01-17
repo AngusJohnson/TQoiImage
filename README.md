@@ -34,6 +34,7 @@ Example:
 </code></pre>
 
 # QoiPreviewHandler.dll
+Windows Explorer (64bit) Preview Handler shell extension
 
 ![previewhandler](https://user-images.githubusercontent.com/5280692/149751938-dc65d49d-77a4-43a8-b894-d0503254f929.png)
 
