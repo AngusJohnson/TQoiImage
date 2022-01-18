@@ -33,8 +33,11 @@ Example:
   <b>end</b>;
 </code></pre>
 
-# QoiPreviewHandler.dll
-Windows Explorer (64bit) Preview Handler shell extension
+# QoiShellExtensions.dll
+Windows Explorer (64bit) Preview Handler and Thumbnail Provider shell extensions
 
 ![previewhandler](https://user-images.githubusercontent.com/5280692/149751938-dc65d49d-77a4-43a8-b894-d0503254f929.png)
+
+![thumbnails](https://user-images.githubusercontent.com/5280692/149880916-c8410071-001c-4998-963d-0be9bb6b3dd0.png)
+
 
