@@ -33,8 +33,9 @@ Example:
   <b>end</b>;
 </code></pre>
 
-# QoiShellExtensions.dll (with Delphi source code)
-Windows Explorer (64bit) Preview Handler and Thumbnail Provider shell extensions
+# QoiShellExtensions.dll
+Windows Explorer (64bit) Preview Handler and Thumbnail Provider shell extensions.<br>
+(Zip package includes Delphi source code.)
 
 ![previewhandler](https://user-images.githubusercontent.com/5280692/149751938-dc65d49d-77a4-43a8-b894-d0503254f929.png)
 
