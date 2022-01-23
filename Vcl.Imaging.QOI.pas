@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.0                                                            *
+* Version   :  2.01                                                            *
 * Date      :  23 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2021-2022                                         *
@@ -54,11 +54,6 @@ type
   PARGB = ^TARGB;
   TArrayOfARGB = array of TARGB;
 
-  TRGB = packed record
-    B: Byte; G: Byte; R: Byte;
-  end;
-  PRGB = ^TRGB;
-
   TQoiRec = record
     Width     : Cardinal;
     Height    : Cardinal;
@@ -100,6 +95,9 @@ type
   procedure SaveToStream(const qoi: TQoiRec; Stream: TStream);
   function LoadFromStream(Stream: TStream): TQoiRec;
 
+  function SaveToBytes(const qoi: TQoiRec): TBytes;
+  function LoadFromBytes(const bytes: TBytes): TQoiRec;
+
 const QOI_MAGIC = $66696F71;
 
 implementation
@@ -109,7 +107,6 @@ ResourceString
 
 type
   THackedBitmap = class(TBitmap);
-
   TArrayOfByte = array of Byte;
 
   TQOI_DESC = packed record
@@ -166,108 +163,101 @@ begin
   inc(p);
 end;
 
-{$R-}
 function LoadFromStream(Stream: TStream): TQoiRec;
 var
-  size, run, vg, i: Integer;
+  len: integer;
+  bytes: TBytes;
+begin
+  if not Assigned(Stream) then Exit;
+  len := Stream.Size - Stream.Position;
+  SetLength(bytes, len);
+  Stream.Read(bytes[0], len);
+  Result := LoadFromBytes(bytes);
+end;
+
+{$R-}
+function LoadFromBytes(const bytes: TBytes): TQoiRec;
+var
+  len, run, vg, i: Integer;
   desc: TQOI_DESC;
   index: array [0 .. 63] of TARGB;
   px: TARGB;
   b1, b2: Byte;
   dst: PARGB;
-  src, src0: PByte;
+  src: PByte;
   hasAlpha: Boolean;
 begin
   FillChar(Result, SizeOf(Result), 0);
-  if not Assigned(Stream) then Exit;
 
-  size := Stream.size - Stream.Position;
-  if size < QOI_HEADER_SIZE + qoi_padding_size then
-    Exit;
+  len := Length(bytes);
+  if len < QOI_HEADER_SIZE + qoi_padding_size then Exit;
 
-  if Stream is TMemoryStream then
+  src := @bytes[0];
+  Move(src^, desc, SizeOf(TQOI_DESC));
+  inc(src, SizeOf(TQOI_DESC));
+  with desc do
   begin
-    src0 := nil;
-    src := TMemoryStream(stream).Memory;
-    inc(src, stream.Position);
-  end else
-  begin
-    //Using GetMem instead of TArrayOfByte saves the
-    //very small time cost of zeroing the memory
-    GetMem(src0, size);
-    Stream.Read(src0^, size);
-    src := src0;
+    width := SwapBytes(width);
+    height := SwapBytes(height);
+    if (magic <> QOI_MAGIC) or (width = 0) or (height = 0) or (channels < 3) or
+      (channels > 4) or (colorspace > 1) then
+      Exit;
+    Result.Width := width;
+    Result.Height := height;
+    SetLength(Result.Pixels, width * height);
   end;
+  px.Color := $FF000000;
+  run := 0;
+  FillChar(index, SizeOf(index), 0);
+  hasAlpha := false;
 
-  try
-    Move(src^, desc, SizeOf(TQOI_DESC));
-    inc(src, SizeOf(TQOI_DESC));
-    with desc do
+  dst := @Result.Pixels[0];
+  for i := 0 to Result.Width * Result.Height -1 do
+  begin
+    if (run > 0) then
     begin
-      width := SwapBytes(width);
-      height := SwapBytes(height);
-      if (magic <> QOI_MAGIC) or (width = 0) or (height = 0) or (channels < 3) or
-        (channels > 4) or (colorspace > 1) then
-        Exit;
-      Result.Width := width;
-      Result.Height := height;
-      SetLength(Result.Pixels, width * height);
-    end;
-    px.Color := $FF000000;
-    run := 0;
-    FillChar(index, SizeOf(index), 0);
-    hasAlpha := false;
-
-    dst := @Result.Pixels[0];
-    for i := 0 to Result.Width * Result.Height -1 do
+      Dec(run);
+    end else
     begin
-      if (run > 0) then
+      b1 := ReadByte(src);
+      if (b1 = QOI_OP_RGB) then
       begin
-        Dec(run);
-      end else
+        px.R := ReadByte(src);
+        px.G := ReadByte(src);
+        px.B := ReadByte(src);
+      end
+      else if (b1 = QOI_OP_RGBA) then
       begin
-        b1 := ReadByte(src);
-        if (b1 = QOI_OP_RGB) then
-        begin
-          px.R := ReadByte(src);
-          px.G := ReadByte(src);
-          px.B := ReadByte(src);
-        end
-        else if (b1 = QOI_OP_RGBA) then
-        begin
-          px.R := ReadByte(src);
-          px.G := ReadByte(src);
-          px.B := ReadByte(src);
-          px.A := ReadByte(src);
-          hasAlpha := hasAlpha or (px.A < 255);
-        end
-        else if ((b1 and QOI_MASK_2) = QOI_OP_INDEX) then
-        begin
-          px := index[b1];
-        end
-        else if (b1 and QOI_MASK_2) = QOI_OP_DIFF then
-        begin
-          px.R := px.R + ((b1 shr 4) and 3) - 2;
-          px.G := px.G + ((b1 shr 2) and 3) - 2;
-          px.B := px.B + (b1 and 3) - 2;
-        end
-        else if (b1 and QOI_MASK_2) = QOI_OP_LUMA then
-        begin
-          b2 := ReadByte(src);
-          vg := (b1 and $3F) - 32;
-          px.R := px.R + vg - 8 + ((b2 shr 4) and $F);
-          px.G := px.G + vg;
-          px.B := px.B + vg - 8 + (b2 and $F);
-        end
-        else if (b1 and QOI_MASK_2) = QOI_OP_RUN then
-          run := (b1 and $3F);
-        index[QOI_COLOR_HASH(px)] := px;
-      end;
-      dst.Color := px.Color;
-      inc(dst);
+        px.R := ReadByte(src);
+        px.G := ReadByte(src);
+        px.B := ReadByte(src);
+        px.A := ReadByte(src);
+        hasAlpha := hasAlpha or (px.A < 255);
+      end
+      else if ((b1 and QOI_MASK_2) = QOI_OP_INDEX) then
+      begin
+        px := index[b1];
+      end
+      else if (b1 and QOI_MASK_2) = QOI_OP_DIFF then
+      begin
+        px.R := px.R + ((b1 shr 4) and 3) - 2;
+        px.G := px.G + ((b1 shr 2) and 3) - 2;
+        px.B := px.B + (b1 and 3) - 2;
+      end
+      else if (b1 and QOI_MASK_2) = QOI_OP_LUMA then
+      begin
+        b2 := ReadByte(src);
+        vg := (b1 and $3F) - 32;
+        px.R := px.R + vg - 8 + ((b2 shr 4) and $F);
+        px.G := px.G + vg;
+        px.B := px.B + vg - 8 + (b2 and $F);
+      end
+      else if (b1 and QOI_MASK_2) = QOI_OP_RUN then
+        run := (b1 and $3F);
+      index[QOI_COLOR_HASH(px)] := px;
     end;
-  finally
-    if Assigned(src0) then FreeMem(src0);
+    dst.Color := px.Color;
+    inc(dst);
   end;
 
   if hasAlpha then
@@ -278,24 +268,31 @@ end;
 
 procedure SaveToStream(const qoi: TQoiRec; Stream: TStream);
 var
+  bytes: TBytes;
+begin
+  bytes := SaveToBytes(qoi);
+  Stream.Write(bytes[0], Length(bytes));
+end;
+
+function SaveToBytes(const qoi: TQoiRec): TBytes;
+var
   x,y,k,y2, max_size, run, channels: Integer;
   vr, vg, vb, vg_r, vg_b: Integer;
   len, index_pos: Integer;
-  bytes: TBytes;
   dst: PByte;
   src: PARGB;
   index: array [0 .. 63] of TARGB;
   px_prev: TARGB;
 begin
+  Result := nil;
   len := qoi.Width * qoi.Height;
-  if not Assigned(Stream) or (len = 0) then
-    Exit;
+  if (len = 0) then Exit;
 
   channels := qoi.Channels;
   max_size := len * channels + QOI_HEADER_SIZE + qoi_padding_size;
-  SetLength(bytes, max_size);
+  SetLength(Result, max_size);
 
-  dst := @bytes[0];
+  dst := @Result[0];
   qoi_write_32(dst, QOI_MAGIC);
   qoi_write_32(dst, SwapBytes(qoi.Width));
   qoi_write_32(dst, SwapBytes(qoi.Height));
@@ -380,9 +377,8 @@ begin
 
   for x := 0 to 7 do
     qoi_write_8(dst, qoi_padding[x]);
-  max_size := dst - PByte(@bytes[0]);
-
-  Stream.Write(bytes[0], max_size);
+  max_size := dst - PByte(@Result[0]);
+  SetLength(Result, max_size);
 end;
 
 function CreateBitmapFromQoi(const img: TQoiRec): TBitmap;
