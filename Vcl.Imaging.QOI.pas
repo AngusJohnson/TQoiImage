@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.1                                                             *
+* Version   :  2.11                                                             *
 * Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
@@ -392,17 +392,22 @@ function IsAlphaBlended(img: TImageRec): Boolean;
 var
   i, len: integer;
   p: PARGB;
+  has0, has255: Boolean;
 begin
   Result := true;
   len := Length(img.Pixels);
   if len = 0 then Exit;
   p := @img.Pixels[0];
+  has0    := false;
+  has255  := false;
   for i := 0 to len -1 do
   begin
-    if (p.A < 255) and (p.A > 0) then Exit;
+    if p.A = 0 then has0 := true
+    else if p.A = 255 then has255 := true
+    else exit;
     inc(p);
   end;
-  Result := false;
+  Result := has0 <> has255;
 end;
 
 function GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
