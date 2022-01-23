@@ -15,19 +15,11 @@ Example:
 <b>begin</b>
   qoi := TQoiImage.Create;
   <b>try</b>
-    qoi.LoadFromFile('..\..\dice.qoi');
-    <i>//display the image in a TImage component</i>
+    qoi.LoadFromFile('.\dice.qoi');
+    <i>//display the image ...</i>
     Image1.Picture.Bitmap.Assign(qoi);
-  <b>finally</b>
-    qoi.Free;
-  <b>end</b>;
-
-  qoi := TQoiImage.Create;
-  <b>try</b>
-    <i>//TQoiImage objects can load from 
-    //and save to both QOI and BMP file formats</i>
-    qoi.LoadFromFile('..\..\dice2.bmp');
-    qoi.SaveToFile('..\..\dice2.qoi');
+    if qoi.HasTransparency then
+      Image1.Picture.Bitmap.AlphaFormat := afDefined;
   <b>finally</b>
     qoi.Free;
   <b>end</b>;
