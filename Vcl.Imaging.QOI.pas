@@ -4,33 +4,19 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.01                                                            *
-* Date      :  23 January 2022                                                 *
+* Version   :  2.1                                                             *
+* Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2021-2022                                         *
-* License   :  The MIT License(MIT), see below.                                *
+* License   :  The MIT License (MIT)                                           *
+*              Copyright (c) 2021-2022 Angus Johnson                           *
+*              https://opensource.org/licenses/MIT                             *
 *******************************************************************************)
 
 (*******************************************************************************
-QOI - The "Quite OK Image" format for fast, lossless image compression
-Dominic Szablewski - https://phoboslab.org
-LICENSE: The MIT License(MIT)
-Copyright(c) 2021 Dominic Szablewski
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files(the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and / or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions :
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+* QOI - The "Quite OK Image" format for fast, lossless image compression       *
+* Dominic Szablewski - https://phoboslab.org                                   *
+* LICENSE : The MIT License(MIT)                                               *
+*           Copyright(c) 2021 Dominic Szablewski                               *
 *******************************************************************************)
 
 uses
@@ -42,9 +28,6 @@ uses
 
 type
 
-  TQoiTriState = (tsUnknown, tsFalse, tsTrue);
-  TStreamFormat = (sfUnknown, sfQoi, sfBmp, sfPng, sfJpg);
-
   TARGB = packed record
     case Boolean of
       false : (B: Byte; G: Byte; R: Byte; A: Byte);
@@ -53,24 +36,26 @@ type
   PARGB = ^TARGB;
   TArrayOfARGB = array of TARGB;
 
-  TQoiRec = record
+  TImageRec = record
     Width     : Cardinal;
     Height    : Cardinal;
+    //Channels (as per TQOI_DESC format below)
+    //3: no alpha blending  (alpha: 255)
+    //4: alpha blending     (alpha: 0-255)
     Channels  : Cardinal;
+    //Pixels  : image layout is top-down
     Pixels    : TArrayOfARGB;
   end;
 
   TQoiImage = class(TGraphic)
   private
-    FQoi        : TQoiRec;
-    FTransp     : TQoiTriState;
-    function GetPixels: TArrayOfARGB;
+    FQoi      : TImageRec;
   protected
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
-    function GetEmpty: Boolean; override;
-    function GetHeight: Integer; override;
-    function GetTransparent: Boolean; override;
-    function GetWidth: Integer; override;
+    function  GetEmpty: Boolean; override;
+    function  GetHeight: Integer; override;
+    function  GetTransparent: Boolean; override;
+    function  GetWidth: Integer; override;
     procedure SetHeight(Value: Integer); override;
     procedure SetWidth(Value: Integer); override;
   public
@@ -86,16 +71,20 @@ type
     procedure SaveToClipboardFormat(var AFormat: Word; var AData: THandle;
       var APalette: HPALETTE); override;
     procedure SetSize(AWidth, AHeight: Integer); override;
-    property HasTransparency: Boolean read GetTransparent;
-    //nb: when altering the pixels directly, call ImageChanged afterwards.
-    property Pixels: TArrayOfARGB read GetPixels; //image layout is top-down
+    property  HasTransparency: Boolean read GetTransparent;
+    property  ImageRec: TImageRec read FQoi;
   end;
 
-  procedure SaveToStream(const qoi: TQoiRec; Stream: TStream);
-  function LoadFromStream(Stream: TStream): TQoiRec;
+  function  SaveToQoiBytes(const img: TImageRec): TBytes;
+  function  LoadFromQoiBytes(const bytes: TBytes): TImageRec;
 
-  function SaveToBytes(const qoi: TQoiRec): TBytes;
-  function LoadFromBytes(const bytes: TBytes): TQoiRec;
+  procedure SaveToQoiStream(const img: TImageRec; Stream: TStream);
+  function  LoadFromQoiStream(Stream: TStream): TImageRec;
+
+  function  IsAlphaBlended(img: TImageRec): Boolean;
+
+  function  GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
+  function  CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
 
 const QOI_MAGIC = $66696F71;
 
@@ -105,9 +94,6 @@ ResourceString
   sQoiImageFile = 'QOI image file';
 
 type
-  THackedBitmap = class(TBitmap);
-  TArrayOfByte = array of Byte;
-
   TQOI_DESC = packed record
     magic: Cardinal;
     width: Cardinal;
@@ -162,7 +148,7 @@ begin
   inc(p);
 end;
 
-function LoadFromStream(Stream: TStream): TQoiRec;
+function LoadFromQoiStream(Stream: TStream): TImageRec;
 var
   len: integer;
   bytes: TBytes;
@@ -171,11 +157,11 @@ begin
   len := Stream.Size - Stream.Position;
   SetLength(bytes, len);
   Stream.Read(bytes[0], len);
-  Result := LoadFromBytes(bytes);
+  Result := LoadFromQoiBytes(bytes);
 end;
 
 {$R-}
-function LoadFromBytes(const bytes: TBytes): TQoiRec;
+function LoadFromQoiBytes(const bytes: TBytes): TImageRec;
 var
   len, run, vg, i: Integer;
   desc: TQOI_DESC;
@@ -265,15 +251,15 @@ begin
 end;
 {$R+}
 
-procedure SaveToStream(const qoi: TQoiRec; Stream: TStream);
+procedure SaveToQoiStream(const img: TImageRec; Stream: TStream);
 var
   bytes: TBytes;
 begin
-  bytes := SaveToBytes(qoi);
+  bytes := SaveToQoiBytes(img);
   Stream.Write(bytes[0], Length(bytes));
 end;
 
-function SaveToBytes(const qoi: TQoiRec): TBytes;
+function SaveToQoiBytes(const img: TImageRec): TBytes;
 var
   x,y,k,y2, max_size, run, channels: Integer;
   vr, vg, vb, vg_r, vg_b: Integer;
@@ -284,17 +270,17 @@ var
   px_prev: TARGB;
 begin
   Result := nil;
-  len := qoi.Width * qoi.Height;
+  len := img.Width * img.Height;
   if (len = 0) then Exit;
 
-  channels := qoi.Channels;
+  channels := img.Channels;
   max_size := len * channels + QOI_HEADER_SIZE + qoi_padding_size;
   SetLength(Result, max_size);
 
   dst := @Result[0];
   qoi_write_32(dst, QOI_MAGIC);
-  qoi_write_32(dst, SwapBytes(qoi.Width));
-  qoi_write_32(dst, SwapBytes(qoi.Height));
+  qoi_write_32(dst, SwapBytes(img.Width));
+  qoi_write_32(dst, SwapBytes(img.Height));
   qoi_write_8(dst, channels);
   qoi_write_8(dst, 0); // colorspace
 
@@ -302,7 +288,7 @@ begin
   px_prev.Color := $FF000000;
   FillChar(index, SizeOf(index), 0);
 
-  src := @qoi.Pixels[0];
+  src := @img.Pixels[0];
   for y := 0 to len -1 do
   begin
     if src.Color = px_prev.Color then
@@ -380,28 +366,76 @@ begin
   SetLength(Result, max_size);
 end;
 
-function CreateBitmapFromQoi(const img: TQoiRec): TBitmap;
+function CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
 begin
   Result := TBitmap.Create(img.Width, img.Height);
   Result.PixelFormat := pf32bit;
   SetBitmapBits(Result.Handle, img.Width * img.Height *4, @img.Pixels[0]);
 end;
 
-function ImageHasTransparency(const img: TQoiRec): Boolean;
+procedure SetAlpha255(var img: TImageRec);
 var
-  i,len : Integer;
-  c : PARGB;
+  i, len: integer;
+  p: PARGB;
 begin
-  result := true;
-  len := img.Width * img.Height;
+  len := Length(img.Pixels);
   if len = 0 then Exit;
-  c := @img.Pixels[0];
+  p := @img.Pixels[0];
   for i := 0 to len -1 do
   begin
-    if (c.A < 255) and (c.A > 0) then Exit;
-    inc(c);
+    p.A := 255;
+    inc(p);
+  end;
+end;
+
+function IsAlphaBlended(img: TImageRec): Boolean;
+var
+  i, len: integer;
+  p: PARGB;
+begin
+  Result := true;
+  len := Length(img.Pixels);
+  if len = 0 then Exit;
+  p := @img.Pixels[0];
+  for i := 0 to len -1 do
+  begin
+    if (p.A < 255) and (p.A > 0) then Exit;
+    inc(p);
   end;
   Result := false;
+end;
+
+function GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
+var
+  len: integer;
+  tmp: TBitmap;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+  len := bmp.Width * bmp.Height;
+  SetLength(Result.Pixels, len);
+  if len = 0 then Exit;
+  Result.Width := bmp.Width;
+  Result.Height := bmp.Height;
+
+  if bmp.PixelFormat = pf32bit then
+  begin
+    GetBitmapBits(bmp.Handle, len *4, @Result.Pixels[0]);
+    if IsAlphaBlended(Result) then
+      Result.Channels := 4 else
+      Result.Channels := 3;
+  end else
+  begin
+    tmp := TBitmap.Create;
+    try
+      tmp.Assign(bmp);
+      tmp.PixelFormat := pf32bit;
+      GetBitmapBits(tmp.Handle, len *4, @Result.Pixels[0]);
+      Result.Channels := 3;
+    finally
+      tmp.Free;
+    end;
+  end;
+  if Result.Channels = 3 then SetAlpha255(Result);
 end;
 
 //------------------------------------------------------------------------------
@@ -409,9 +443,20 @@ end;
 //------------------------------------------------------------------------------
 
 procedure TQoiImage.AssignTo(Dest: TPersistent);
+var
+  bmp: TBitmap;
 begin
   if Dest is TQoiImage then
     TQoiImage(Dest).Assign(self)
+  else if Dest is TBitmap then
+  begin
+    bmp := CreateBitmapFromImgRec(FQoi);
+    try
+      TBitmap(Dest).Assign(bmp);
+    finally
+      bmp.Free;
+    end;
+  end
   else inherited;
 end;
 
@@ -420,12 +465,18 @@ begin
   if (Source is TQoiImage) then
     with TQoiImage(Source).FQoi do
   begin
-    FQoi.Width := Width;
-    FQoi.Height := Height;
-    FQoi.Pixels := Copy(Pixels, 0, Length(Pixels));
-    FTransp := TQoiImage(Source).FTransp;
-  end;
+    FQoi.Width    := Width;
+    FQoi.Height   := Height;
+    FQoi.Pixels   := Copy(Pixels, 0, Length(Pixels));
+  end
+  else if Source is TBitmap then
+  begin
+    FQoi := GetImgRecFromBitmap(TBitmap(Source));
+  end
+  else inherited;
 end;
+
+type THackedBitmap = class(TBitmap);
 
 procedure TQoiImage.Draw(ACanvas: TCanvas; const Rect: TRect);
 var
@@ -433,7 +484,7 @@ var
   BlendFunction: TBlendFunction;
   w, h: integer;
 begin
-  bmp := CreateBitmapFromQoi(FQoi);
+  bmp := CreateBitmapFromImgRec(FQoi);
   try
     if HasTransparency then
     begin
@@ -461,22 +512,14 @@ end;
 
 function TQoiImage.GetTransparent: Boolean;
 begin
-  case FTransp of
-    tsUnknown:
-    begin
-      Result := ImageHasTransparency(FQoi);
-      if Result then
-        FTransp := tsTrue else
-        FTransp := tsFalse
-    end;
-    tsFalse: Result := False;
-    else Result := True;
+  if FQoi.Channels = 4 then Result := true
+  else if FQoi.Channels = 3 then Result := false
+  else
+  begin
+    Result := IsAlphaBlended(FQoi);
+    if Result then FQoi.Channels := 4
+    else FQoi.Channels := 3;
   end;
-end;
-
-function TQoiImage.GetPixels: TArrayOfARGB;
-begin
-  Result := FQoi.Pixels;
 end;
 
 function TQoiImage.GetHeight: Integer;
@@ -509,7 +552,7 @@ end;
 
 procedure TQoiImage.ImageChanged;
 begin
-  FTransp := tsUnknown;
+  FQoi.Channels := 0;
 end;
 
 class function TQoiImage.CanLoadFromStream(Stream: TStream): Boolean;
@@ -528,9 +571,7 @@ end;
 procedure TQoiImage.LoadFromStream(Stream: TStream);
 begin
   if not Assigned(Stream) then Exit;
-  FQoi := Vcl.Imaging.Qoi.LoadFromStream(Stream);
-  if FQoi.Channels = 4 then FTransp := tsTrue
-  else FTransp := tsFalse;
+  FQoi := LoadFromQoiStream(Stream);
   Changed(Self);
 end;
 
@@ -541,7 +582,7 @@ end;
 
 procedure TQoiImage.SaveToStream(Stream: TStream);
 begin
-  Vcl.Imaging.Qoi.SaveToStream(FQoi, Stream);
+  SaveToQoiStream(FQoi, Stream);
 end;
 
 procedure TQoiImage.LoadFromClipboardFormat(AFormat: Word; AData: THandle;
@@ -552,7 +593,7 @@ begin
   bmp := TBitmap.Create;
   try
     THackedBitmap(bmp).LoadFromClipboardFormat(AFormat, AData, APalette);
-    Assign(bmp);
+    FQoi := GetImgRecFromBitmap(bmp);
   finally
     bmp.Free;
   end;
@@ -563,7 +604,7 @@ procedure TQoiImage.SaveToClipboardFormat(var AFormat: Word;
 var
   bmp: TBitmap;
 begin
-  bmp := CreateBitmapFromQoi(FQoi);
+  bmp := CreateBitmapFromImgRec(FQoi);
   try
     THackedBitmap(bmp).SaveToClipboardFormat(AFormat, AData, APalette);
   finally
