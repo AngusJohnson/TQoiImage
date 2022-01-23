@@ -33,10 +33,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *******************************************************************************)
 
-//a semi-universal TGraphic object can greatly simplify code but some
-//may object to this approach and prefer a 'pure' QOI TGraphic class.
-{$DEFINE PURE_QOI}
-
 uses
   System.SysUtils,
   Winapi.Windows,
