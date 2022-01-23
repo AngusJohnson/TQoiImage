@@ -37,7 +37,6 @@ uses
   System.SysUtils,
   Winapi.Windows,
   Vcl.Graphics,
-  Vcl.ExtCtrls,
   System.Math,
   System.Classes;
 
