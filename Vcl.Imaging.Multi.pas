@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.1                                                             *
+* Version   :  2.12                                                             *
 * Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
@@ -190,6 +190,8 @@ var
 begin
   if Dest is TMultiImage then
     TMultiImage(Dest).Assign(self)
+  else if Dest is TQoiImage then
+    TQoiImage(Dest).ImageRec := fImg
   else if Dest is TBitmap then
   begin
     bmp := CreateBitmapFromImgRec(fImg);

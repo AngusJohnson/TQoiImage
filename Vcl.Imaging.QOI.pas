@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.11                                                             *
+* Version   :  2.12                                                             *
 * Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
@@ -50,6 +50,7 @@ type
   TQoiImage = class(TGraphic)
   private
     FQoi      : TImageRec;
+    procedure SetImageRec(const imgRec: TImageRec);
   protected
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
     function  GetEmpty: Boolean; override;
@@ -59,7 +60,6 @@ type
     procedure SetHeight(Value: Integer); override;
     procedure SetWidth(Value: Integer); override;
   public
-    procedure ImageChanged;
     procedure Assign(Source: TPersistent); override;
     procedure AssignTo(Dest: TPersistent); override;
     class function CanLoadFromStream(Stream: TStream): Boolean; override;
@@ -72,7 +72,7 @@ type
       var APalette: HPALETTE); override;
     procedure SetSize(AWidth, AHeight: Integer); override;
     property  HasTransparency: Boolean read GetTransparent;
-    property  ImageRec: TImageRec read FQoi;
+    property  ImageRec: TImageRec read FQoi write SetImageRec;
   end;
 
   function  SaveToQoiBytes(const img: TImageRec): TBytes;
@@ -468,15 +468,14 @@ end;
 procedure TQoiImage.Assign(Source: TPersistent);
 begin
   if (Source is TQoiImage) then
-    with TQoiImage(Source).FQoi do
   begin
-    FQoi.Width    := Width;
-    FQoi.Height   := Height;
-    FQoi.Pixels   := Copy(Pixels, 0, Length(Pixels));
+    FQoi := TQoiImage(Source).FQoi;
+    Changed(self);
   end
   else if Source is TBitmap then
   begin
     FQoi := GetImgRecFromBitmap(TBitmap(Source));
+    Changed(self);
   end
   else inherited;
 end;
@@ -551,13 +550,15 @@ procedure TQoiImage.SetSize(AWidth, AHeight: Integer);
 begin
   FQoi.Width := AWidth;
   FQoi.Height := AHeight;
+  FQoi.Channels := 0;
   SetLength(FQoi.Pixels, AWidth * AHeight);
-  ImageChanged;
+  Changed(Self);
 end;
 
-procedure TQoiImage.ImageChanged;
+procedure TQoiImage.SetImageRec(const imgRec: TImageRec);
 begin
-  FQoi.Channels := 0;
+  FQoi := imgRec;
+  Changed(Self);
 end;
 
 class function TQoiImage.CanLoadFromStream(Stream: TStream): Boolean;
