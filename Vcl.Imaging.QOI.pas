@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.13                                                             *
+* Version   :  2.14                                                             *
 * Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
@@ -406,7 +406,7 @@ begin
     else exit;
     inc(p);
   end;
-  Result := has0 <> has255;
+  Result := has0 = has255;
 end;
 
 function GetImgRecFromBitmap(bmp: TBitmap): TImageRec;

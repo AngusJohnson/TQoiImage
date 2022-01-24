@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.13                                                            *
+* Version   :  2.14                                                            *
 * Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
@@ -38,10 +38,10 @@ type
     procedure SetImageRec(const imgRec: TImageRec);
   protected
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
-    function GetEmpty: Boolean; override;
-    function GetHeight: Integer; override;
-    function GetTransparent: Boolean; override;
-    function GetWidth: Integer; override;
+    function  GetEmpty: Boolean; override;
+    function  GetHeight: Integer; override;
+    function  GetTransparent: Boolean; override;
+    function  GetWidth: Integer; override;
     procedure SetHeight(Value: Integer); override;
     procedure SetWidth(Value: Integer); override;
   public
@@ -257,7 +257,9 @@ begin
         ACanvas.Handle, Rect.Left, Rect.Top, w, h,
         bmp.Canvas.Handle, 0, 0, w,h, BlendFunction);
     end else
-      THackedBitmap(bmp).Draw(ACanvas, Rect);
+      with Rect do
+        StretchBlt(ACanvas.Handle, Left, Top, Right - Left, Bottom - Top,
+          bmp.Canvas.Handle, 0, 0, bmp.Width, bmp.Height, SRCCOPY);
   finally
     bmp.Free;
   end;
