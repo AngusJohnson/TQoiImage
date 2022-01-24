@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.12                                                             *
+* Version   :  2.13                                                            *
 * Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
@@ -35,7 +35,7 @@ type
   private
     fImg        : TImageRec;
     fSaveFmt    : TStreamFormat;
-    function GetPixels: TArrayOfARGB;
+    procedure SetImageRec(const imgRec: TImageRec);
   protected
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
     function GetEmpty: Boolean; override;
@@ -56,9 +56,7 @@ type
     procedure SaveToClipboardFormat(var AFormat: Word; var AData: THandle;
       var APalette: HPALETTE); override;
     procedure SetSize(AWidth, AHeight: Integer); override;
-    property HasTransparency: Boolean read GetTransparent;
-    //nb: when altering the pixels directly, call Changed afterwards.
-    property Pixels: TArrayOfARGB read GetPixels; //image layout is top-down
+    property  ImageRec: TImageRec read fImg write SetImageRec;
   end;
 
   function GetStreamFormat(stream: TStream): TStreamFormat;
@@ -72,7 +70,7 @@ implementation
 
 type
   THackedBitmap = class(TBitmap);
-  TArrayOfByte = array of Byte;
+  THackedJpeg   = class(TJPEGImage);
 
 function GetStreamFormat(stream: TStream): TStreamFormat;
 var
@@ -172,8 +170,6 @@ begin
   end;
 end;
 
-type THackedJpeg = class(TJPEGImage);
-
 function GetImgRecFromJpegImage(jpeg: TJPEGImage): TImageRec;
 begin
   Result := GetImgRecFromBitmap(THackedJpeg(jpeg).Bitmap);
@@ -193,16 +189,17 @@ begin
   else if Dest is TQoiImage then
     TQoiImage(Dest).ImageRec := fImg
   else if Dest is TBitmap then
+    with TBitmap(Dest) do
   begin
-    bmp := CreateBitmapFromImgRec(fImg);
-    try
-      if HasTransparency then
-        bmp.AlphaFormat := afDefined;
-      TBitmap(Dest).Assign(bmp);
-    finally
-      bmp.Free;
+    PixelFormat := pf32bit;
+    SetSize(Self.Width, Self.Height);
+    if not self.Empty then
+    begin
+      SetBitmapBits(Handle, Width * Height * 4, @fImg.Pixels[0]);
+      if self.Transparent then AlphaFormat := afDefined;
     end;
-  end else if Dest is TPngImage then
+  end
+  else if Dest is TPngImage then
   begin
     png := CreatePngImageFromImgRec(fImg);
     try
@@ -226,28 +223,17 @@ end;
 procedure TMultiImage.Assign(Source: TPersistent);
 begin
   if (Source is TMultiImage) then
-    with TMultiImage(Source).fImg do
-  begin
-    fImg.Width := Width;
-    fImg.Height := Height;
-    fImg.Pixels := Copy(Pixels, 0, Length(Pixels));
-    Changed(Self);
-  end
+    ImageRec := TMultiImage(Source).ImageRec
+  else if (Source is TQoiImage) then
+    ImageRec := TQoiImage(Source).ImageRec
   else if (Source is TPngImage) then
-  begin
-    fImg := GetImgRecFromPngImage(TPngImage(Source));
-    Changed(Self);
-  end
+    ImageRec := GetImgRecFromPngImage(TPngImage(Source))
   else if (Source is TJPEGImage) then
-  begin
-    fImg := GetImgRecFromJpegImage(TJPEGImage(Source));
-    Changed(Self);
-  end
+    ImageRec := GetImgRecFromJpegImage(TJPEGImage(Source))
   else if (Source is TBitmap) then
-  begin
-    fImg := GetImgRecFromBitmap(TBitmap(Source));
-    Changed(Self);
-  end;
+    ImageRec := GetImgRecFromBitmap(TBitmap(Source))
+  else
+    inherited;
 end;
 
 procedure TMultiImage.Draw(ACanvas: TCanvas; const Rect: TRect);
@@ -258,7 +244,7 @@ var
 begin
   bmp := CreateBitmapFromImgRec(fImg);
   try
-    if HasTransparency then
+    if Transparent then
     begin
       bmp.AlphaFormat := afDefined;
       BlendFunction.BlendOp := AC_SRC_OVER;
@@ -284,12 +270,14 @@ end;
 
 function TMultiImage.GetTransparent: Boolean;
 begin
-  Result := IsAlphaBlended(fImg);
-end;
-
-function TMultiImage.GetPixels: TArrayOfARGB;
-begin
-  Result := fImg.Pixels;
+  if fImg.Channels = 4 then Result := true
+  else if fImg.Channels = 3 then Result := false
+  else
+  begin
+    Result := HasTransparency(fImg);
+    if Result then fImg.Channels := 4
+    else fImg.Channels := 3;
+  end;
 end;
 
 function TMultiImage.GetHeight: Integer;
@@ -317,6 +305,12 @@ begin
   fImg.Width := AWidth;
   fImg.Height := AHeight;
   SetLength(fImg.Pixels, AWidth * AHeight);
+  Changed(Self);
+end;
+
+procedure TMultiImage.SetImageRec(const imgRec: TImageRec);
+begin
+  fImg := imgRec;
   Changed(Self);
 end;
 

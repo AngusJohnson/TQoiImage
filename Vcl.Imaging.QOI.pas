@@ -4,7 +4,7 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.12                                                             *
+* Version   :  2.13                                                             *
 * Date      :  24 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
@@ -71,7 +71,6 @@ type
     procedure SaveToClipboardFormat(var AFormat: Word; var AData: THandle;
       var APalette: HPALETTE); override;
     procedure SetSize(AWidth, AHeight: Integer); override;
-    property  HasTransparency: Boolean read GetTransparent;
     property  ImageRec: TImageRec read FQoi write SetImageRec;
   end;
 
@@ -81,7 +80,7 @@ type
   procedure SaveToQoiStream(const img: TImageRec; Stream: TStream);
   function  LoadFromQoiStream(Stream: TStream): TImageRec;
 
-  function  IsAlphaBlended(img: TImageRec): Boolean;
+  function  HasTransparency(const img: TImageRec): Boolean;
 
   function  GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
   function  CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
@@ -388,7 +387,7 @@ begin
   end;
 end;
 
-function IsAlphaBlended(img: TImageRec): Boolean;
+function HasTransparency(const img: TImageRec): Boolean;
 var
   i, len: integer;
   p: PARGB;
@@ -425,7 +424,7 @@ begin
   if bmp.PixelFormat = pf32bit then
   begin
     GetBitmapBits(bmp.Handle, len *4, @Result.Pixels[0]);
-    if IsAlphaBlended(Result) then
+    if HasTRansparency(Result) then
       Result.Channels := 4 else
       Result.Channels := 3;
   end else
@@ -490,7 +489,7 @@ var
 begin
   bmp := CreateBitmapFromImgRec(FQoi);
   try
-    if HasTransparency then
+    if Transparent then
     begin
       bmp.AlphaFormat := afDefined;
       BlendFunction.BlendOp := AC_SRC_OVER;
@@ -520,7 +519,7 @@ begin
   else if FQoi.Channels = 3 then Result := false
   else
   begin
-    Result := IsAlphaBlended(FQoi);
+    Result := HasTransparency(FQoi);
     if Result then FQoi.Channels := 4
     else FQoi.Channels := 3;
   end;
