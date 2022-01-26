@@ -37,8 +37,8 @@ type
   TArrayOfARGB = array of TARGB;
 
   TImageRec = record
-    Width     : Cardinal;
-    Height    : Cardinal;
+    Width     : integer;
+    Height    : integer;
     //Channels (as per TQOI_DESC format below)
     //3: no alpha blending  (alpha: 255)
     //4: alpha blending     (alpha: 0-255)
