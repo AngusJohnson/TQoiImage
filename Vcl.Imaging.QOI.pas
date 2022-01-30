@@ -4,8 +4,8 @@ interface
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  2.14                                                             *
-* Date      :  24 January 2022                                                 *
+* Version   :  2.15                                                             *
+* Date      :  30 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
 * License   :  The MIT License (MIT)                                           *
 *              Copyright (c) 2021-2022 Angus Johnson                           *
@@ -27,7 +27,6 @@ uses
   System.Classes;
 
 type
-
   TARGB = packed record
     case Boolean of
       false : (B: Byte; G: Byte; R: Byte; A: Byte);
@@ -36,15 +35,16 @@ type
   PARGB = ^TARGB;
   TArrayOfARGB = array of TARGB;
 
+  TRGB = packed record
+    B: Byte; G: Byte; R: Byte;
+  end;
+  PRGB = ^TRGB;
+
   TImageRec = record
-    Width     : integer;
-    Height    : integer;
-    //Channels (as per TQOI_DESC format below)
-    //3: no alpha blending  (alpha: 255)
-    //4: alpha blending     (alpha: 0-255)
-    Channels  : Cardinal;
-    //Pixels  : image layout is top-down
-    Pixels    : TArrayOfARGB;
+    Width           : integer;
+    Height          : integer;
+    HasTransparency : Boolean;
+    Pixels          : TArrayOfARGB; //top-down 4 bytes per pixel
   end;
 
   TQoiImage = class(TGraphic)
@@ -80,10 +80,8 @@ type
   procedure SaveToQoiStream(const img: TImageRec; Stream: TStream);
   function  LoadFromQoiStream(Stream: TStream): TImageRec;
 
-  function  HasTransparency(const img: TImageRec): Boolean;
-
-  function  GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
-  function  CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
+  function GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
+  function CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
 
 const QOI_MAGIC = $66696F71;
 
@@ -112,6 +110,82 @@ const
   QOI_HEADER_SIZE = 14;
   qoi_padding: array [0 .. 7] of Byte = (0, 0, 0, 0, 0, 0, 0, 1);
   qoi_padding_size = 8;
+
+procedure SetAlpha255(var img: TImageRec);
+var
+  i, len: integer;
+  p: PARGB;
+begin
+  img.HasTransparency := false;
+  len := Length(img.Pixels);
+  if len = 0 then Exit;
+  p := @img.Pixels[0];
+  for i := 0 to len -1 do
+  begin
+    p.A := 255;
+    inc(p);
+  end;
+end;
+
+function GetHasTransparency(const img: TImageRec): Boolean;
+var
+  i, len: integer;
+  p: PARGB;
+  has0, has255: Boolean;
+begin
+  Result := true;
+  len := Length(img.Pixels);
+  if len = 0 then Exit;
+  p := @img.Pixels[0];
+  has0    := false;
+  has255  := false;
+  for i := 0 to len -1 do
+  begin
+    if p.A = 0 then has0 := true
+    else if p.A = 255 then has255 := true
+    else exit;
+    inc(p);
+  end;
+  Result := has0 = has255;
+end;
+
+function GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
+var
+  len: integer;
+  tmp: TBitmap;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+  len := bmp.Width * bmp.Height;
+  SetLength(Result.Pixels, len);
+  if len = 0 then Exit;
+  Result.Width := bmp.Width;
+  Result.Height := bmp.Height;
+
+  if bmp.PixelFormat = pf32bit then
+  begin
+    GetBitmapBits(bmp.Handle, len *4, @Result.Pixels[0]);
+    Result.HasTransparency := GetHasTransparency(Result);
+  end else
+  begin
+    tmp := TBitmap.Create;
+    try
+      tmp.Assign(bmp);
+      tmp.PixelFormat := pf32bit;
+      GetBitmapBits(tmp.Handle, len *4, @Result.Pixels[0]);
+      Result.HasTransparency := false;
+    finally
+      tmp.Free;
+    end;
+  end;
+  if not Result.HasTransparency then SetAlpha255(Result);
+end;
+
+function CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
+begin
+  Result := TBitmap.Create(img.Width, img.Height);
+  Result.PixelFormat := pf32bit;
+  SetBitmapBits(Result.Handle, img.Width * img.Height *4, @img.Pixels[0]);
+end;
 
 function QOI_COLOR_HASH(c: TARGB): Byte; inline;
 begin
@@ -243,10 +317,7 @@ begin
     dst.Color := px.Color;
     inc(dst);
   end;
-
-  if hasAlpha then
-    Result.Channels := 4 else
-    Result.Channels := 3;
+  Result.HasTransparency := hasAlpha;
 end;
 {$R+}
 
@@ -272,7 +343,9 @@ begin
   len := img.Width * img.Height;
   if (len = 0) then Exit;
 
-  channels := img.Channels;
+  if img.HasTransparency then
+    channels := 4 else
+    channels := 3;
   max_size := len * channels + QOI_HEADER_SIZE + qoi_padding_size;
   SetLength(Result, max_size);
 
@@ -365,83 +438,6 @@ begin
   SetLength(Result, max_size);
 end;
 
-function CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
-begin
-  Result := TBitmap.Create(img.Width, img.Height);
-  Result.PixelFormat := pf32bit;
-  SetBitmapBits(Result.Handle, img.Width * img.Height *4, @img.Pixels[0]);
-end;
-
-procedure SetAlpha255(var img: TImageRec);
-var
-  i, len: integer;
-  p: PARGB;
-begin
-  len := Length(img.Pixels);
-  if len = 0 then Exit;
-  p := @img.Pixels[0];
-  for i := 0 to len -1 do
-  begin
-    p.A := 255;
-    inc(p);
-  end;
-end;
-
-function HasTransparency(const img: TImageRec): Boolean;
-var
-  i, len: integer;
-  p: PARGB;
-  has0, has255: Boolean;
-begin
-  Result := true;
-  len := Length(img.Pixels);
-  if len = 0 then Exit;
-  p := @img.Pixels[0];
-  has0    := false;
-  has255  := false;
-  for i := 0 to len -1 do
-  begin
-    if p.A = 0 then has0 := true
-    else if p.A = 255 then has255 := true
-    else exit;
-    inc(p);
-  end;
-  Result := has0 = has255;
-end;
-
-function GetImgRecFromBitmap(bmp: TBitmap): TImageRec;
-var
-  len: integer;
-  tmp: TBitmap;
-begin
-  FillChar(Result, SizeOf(Result), 0);
-  len := bmp.Width * bmp.Height;
-  SetLength(Result.Pixels, len);
-  if len = 0 then Exit;
-  Result.Width := bmp.Width;
-  Result.Height := bmp.Height;
-
-  if bmp.PixelFormat = pf32bit then
-  begin
-    GetBitmapBits(bmp.Handle, len *4, @Result.Pixels[0]);
-    if HasTRansparency(Result) then
-      Result.Channels := 4 else
-      Result.Channels := 3;
-  end else
-  begin
-    tmp := TBitmap.Create;
-    try
-      tmp.Assign(bmp);
-      tmp.PixelFormat := pf32bit;
-      GetBitmapBits(tmp.Handle, len *4, @Result.Pixels[0]);
-      Result.Channels := 3;
-    finally
-      tmp.Free;
-    end;
-  end;
-  if Result.Channels = 3 then SetAlpha255(Result);
-end;
-
 //------------------------------------------------------------------------------
 // TQoiImage methods
 //------------------------------------------------------------------------------
@@ -456,6 +452,7 @@ begin
   begin
     bmp := CreateBitmapFromImgRec(FQoi);
     try
+      bmp.AlphaFormat := afDefined;
       TBitmap(Dest).Assign(bmp);
     finally
       bmp.Free;
@@ -515,14 +512,7 @@ end;
 
 function TQoiImage.GetTransparent: Boolean;
 begin
-  if FQoi.Channels = 4 then Result := true
-  else if FQoi.Channels = 3 then Result := false
-  else
-  begin
-    Result := HasTransparency(FQoi);
-    if Result then FQoi.Channels := 4
-    else FQoi.Channels := 3;
-  end;
+  Result := FQoi.HasTransparency;
 end;
 
 function TQoiImage.GetHeight: Integer;
@@ -549,7 +539,7 @@ procedure TQoiImage.SetSize(AWidth, AHeight: Integer);
 begin
   FQoi.Width := AWidth;
   FQoi.Height := AHeight;
-  FQoi.Channels := 0;
+  FQoi.HasTransparency := false;
   SetLength(FQoi.Pixels, AWidth * AHeight);
   Changed(Self);
 end;
