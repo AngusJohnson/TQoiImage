@@ -1,4 +1,4 @@
-unit Vcl.Imaging.QOI;
+unit QOI;
 
 interface
 
@@ -20,13 +20,25 @@ interface
 *******************************************************************************)
 
 uses
+{$IF RTLVersion >= 23}
   System.SysUtils,
   Winapi.Windows,
   Vcl.Graphics,
   System.Math,
   System.Classes;
+{$ELSE}
+  SysUtils,
+  Windows,
+  Graphics,
+  Math,
+  Classes;
+{$IFEND}
 
 type
+{$IF RTLVersion < 21}
+  TBytes = array of Byte;
+{$IFEND}
+
   TARGB = packed record
     case Boolean of
       false : (B: Byte; G: Byte; R: Byte; A: Byte);
@@ -62,7 +74,7 @@ type
   public
     procedure Assign(Source: TPersistent); override;
     procedure AssignTo(Dest: TPersistent); override;
-    class function CanLoadFromStream(Stream: TStream): Boolean; override;
+    class function CanLoadFromStream(Stream: TStream): Boolean; {$IF RTLVersion >= 23} override; {$IFEND} // 23 ???
     procedure LoadFromStream(Stream: TStream); override;
     procedure SaveToFile(const Filename: string); override;
     procedure SaveToStream(Stream: TStream); override;
@@ -70,7 +82,7 @@ type
       APalette: HPALETTE); override;
     procedure SaveToClipboardFormat(var AFormat: Word; var AData: THandle;
       var APalette: HPALETTE); override;
-    procedure SetSize(AWidth, AHeight: Integer); override;
+    procedure SetSize(AWidth, AHeight: Integer); {$IF RTLVersion >= 23} override; {$IFEND} // 23 ???
     property  ImageRec: TImageRec read FQoi write SetImageRec;
   end;
 
@@ -182,12 +194,14 @@ end;
 
 function CreateBitmapFromImgRec(const img: TImageRec): TBitmap;
 begin
-  Result := TBitmap.Create(img.Width, img.Height);
+  Result := TBitmap.Create;     
+  Result.Width:=img.Width;
+  Result.Height:=img.Height;
   Result.PixelFormat := pf32bit;
   SetBitmapBits(Result.Handle, img.Width * img.Height *4, @img.Pixels[0]);
 end;
 
-function QOI_COLOR_HASH(c: TARGB): Byte; inline;
+function QOI_COLOR_HASH(c: TARGB): Byte; {$IF CompilerVersion > 16} inline; {$IFEND}// >= Delphi 2005
 begin
   Result := (c.R * 3 + c.G * 5 + c.B * 7 + c.A * 11) and $3F;
 end;
@@ -203,19 +217,19 @@ begin
   r[0] := v[3];
 end;
 
-function ReadByte(var p: PByte): Byte; inline;
+function ReadByte(var p: PByte): Byte; {$IF CompilerVersion > 16} inline; {$IFEND}// >= Delphi 2005
 begin
   Result := p^;
   inc(p);
 end;
 
-procedure qoi_write_32(var p: PByte; val: Cardinal); inline;
+procedure qoi_write_32(var p: PByte; val: Cardinal); {$IF CompilerVersion > 16} inline; {$IFEND}// >= Delphi 2005
 begin
   PCardinal(p)^ := val;
   inc(p, SizeOf(Cardinal));
 end;
 
-procedure qoi_write_8(var p: PByte; val: Byte); inline;
+procedure qoi_write_8(var p: PByte; val: Byte); {$IF CompilerVersion > 16} inline; {$IFEND}// >= Delphi 2005
 begin
   p^ := val;
   inc(p);
@@ -434,7 +448,7 @@ begin
 
   for x := 0 to 7 do
     qoi_write_8(dst, qoi_padding[x]);
-  max_size := dst - PByte(@Result[0]);
+  max_size := UInt(dst) - UInt(@Result[0]); //?? PByte
   SetLength(Result, max_size);
 end;
 
@@ -452,7 +466,9 @@ begin
   begin
     bmp := CreateBitmapFromImgRec(FQoi);
     try
+      {$IF RTLVersion >= 23} //??
       bmp.AlphaFormat := afDefined;
+      {$IFEND}
       TBitmap(Dest).Assign(bmp);
     finally
       bmp.Free;
@@ -488,14 +504,16 @@ begin
   try
     if Transparent then
     begin
+      {$IF RTLVersion >= 23} //??
       bmp.AlphaFormat := afDefined;
+      {$IFEND}
       BlendFunction.BlendOp := AC_SRC_OVER;
       BlendFunction.AlphaFormat := AC_SRC_ALPHA;
       BlendFunction.SourceConstantAlpha := 255;
       BlendFunction.BlendFlags := 0;
-      w := System.Math.Min(Width, Rect.Width);
-      h := System.Math.Min(Height, Rect.Height);
-      Winapi.Windows.AlphaBlend(
+      w := Math.Min(Width, Rect.Right-Rect.Left);
+      h := Math.Min(Height, Rect.Bottom-Rect.Top);
+      Windows.AlphaBlend(
         ACanvas.Handle, Rect.Left, Rect.Top, w, h,
         bmp.Canvas.Handle, 0, 0, w,h, BlendFunction);
     end else
