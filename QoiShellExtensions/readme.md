@@ -7,26 +7,23 @@ Preview Handler and Thumbnail Provider
 Install:
 ----------
 
-Right click Windows' Start Button
-  Select Windows PowerShell (Admin)
-
-In Windows PowerShell ...
-cd path_to_QoiShellExtensions
-regsvr32 QoiShellExtensions.dll
-exit
+1. Right click Windows' Start Button<br>
+2. Select Windows PowerShell (Admin)<br>
+In Windows PowerShell ...<br>
+**cd** path_to_QoiShellExtensions<br>
+**regsvr32** QoiShellExtensions.dll<br>
+exit<br><br>
 
 ----------
 Uninstall:
 ----------
 
-Right click Windows' Start Button
-  Select Windows PowerShell (Admin)
-
-In Windows PowerShell ...
-cd path_to_QoiShellExtensions
-regsvr32 /u QoiShellExtensions.dll
-exit
-
+1. Right click Windows' Start Button<br>
+2. Select Windows PowerShell (Admin)<br>
+In Windows PowerShell ...<br>
+**cd** path_to_QoiShellExtensions<br>
+**regsvr32 /u** QoiShellExtensions.dll<br>
+exit<br><br>
 
 ----------
 
