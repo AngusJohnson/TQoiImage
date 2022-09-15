@@ -7,7 +7,7 @@ https://github.com/phoboslab/qoi
 
 Example:
 <pre><code>
-<b>uses</b> QoiImage;
+<b>uses</b> Forms, Graphics, QoiImage;
 
 type
   TForm1 = class(TForm)

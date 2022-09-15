@@ -5,14 +5,15 @@ program QoiTest;
 {$IFEND}
 uses
   Forms,
-  PngImage in 'PngImage.pas',
   QoiImage in '..\QoiImage.pas',
   Unit1 in 'Unit1.pas' {Form1};
 
 {$R *.res}
 begin
   Application.Initialize;
-  //Application.MainFormOnTaskbar := True;
+{$IF COMPILERVERSION >= 18.5}
+  Application.MainFormOnTaskbar := True;
+{$IFEND}
   Application.CreateForm(TForm1, Form1);
   Application.Run;
 end.

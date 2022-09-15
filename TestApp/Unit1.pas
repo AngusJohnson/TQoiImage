@@ -141,8 +141,6 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   StatusBar1.Font.Style := [fsBold];
-  if FileExists('qoi_logo.png') then
-    LoadImage('qoi_logo.png');
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
