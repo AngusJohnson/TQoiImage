@@ -529,8 +529,16 @@ end;
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
+var
+  res: HResult;
+
 initialization
+  res := OleInitialize(nil);
   TComObjectFactory.Create(ComServer,
     TQoiShelExt, IID_EXT_ShellExtensions,
     extFile, extDescription, ciMultiInstance, tmApartment);
+
+finalization
+  if res = S_OK then OleUninitialize();
+
 end.
